@@ -1,0 +1,914 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * Small improvements designed to enhance the default features used in Drupal Gardens.
+ */
+
+/**
+ * Implements hook_modules_installed().
+ */
+function gardens_features_modules_installed($modules) {
+  // Add the 'access news feeds' permission by default.
+  if (in_array('aggregator', $modules)) {
+    user_role_grant_permissions(DRUPAL_ANONYMOUS_RID, array('access news feeds'));
+    user_role_grant_permissions(DRUPAL_AUTHENTICATED_RID, array('access news feeds'));
+  }
+  // Add the 'save draft' permission by default.
+  if (in_array('save_draft', $modules)) {
+    user_role_grant_permissions(DRUPAL_ANONYMOUS_RID, array('save draft'));
+    user_role_grant_permissions(DRUPAL_AUTHENTICATED_RID, array('save draft'));
+  }
+}
+
+/**
+ * Implements hook_system_info_alter().
+ */
+function gardens_features_system_info_alter(&$info, $file, $type) {
+  // Hide submodules that need to be hidden.
+  $hide_modules = array_merge(_gardens_features_hidden_submodules(), _gardens_features_hidden_dependencies());
+  if (in_array($file->name, $hide_modules)) {
+    $info['hidden'] = TRUE;
+  }
+
+  // In Gardens we want to tweak the names and descriptions of several modules.
+  if ($file->name == 'webform_alt_ui') {
+    $info['name'] = 'Webforms';
+    $info['description'] = 'Allows you to design custom forms and questionnaires to collect feedback or surveys and manage the results.';
+  }
+  if ($file->name == 'views') {
+    $info['description'] = 'Allows you to create custom displays or mashups of content, media, users, and more.';
+    // The Views module implements hook_permission() but Views UI provides the
+    // administrative interface that allows you to configure views. So to get
+    // both the "Permissions" and "Configure" links to appear on the modules
+    // page, we hide Views UI and have it be automatically enabled whenever
+    // Views is (see _gardens_features_hidden_submodules()) and then alter
+    // Views here so that it displays Views UI's configuration link.
+    $info['configure'] = 'admin/structure/views';
+  }
+
+  // In Gardens, not that many modules are displayed on admin/modules, so the
+  // normal Drupal organization into "packages" isn't very useful. "Core" and
+  // "Other" is sufficient.
+  if ($type == 'module' && !in_array($info['package'], array('Core', 'Other'))) {
+    $info['package'] = 'Other';
+  }
+}
+
+/**
+ * Implements hook_update_projects_alter().
+ */
+function gardens_features_update_projects_alter(&$projects) {
+  // In gardens_features_system_info_alter() we marked some modules as hidden
+  // because we don't want them to appear in the UI on the Modules page and
+  // elsewhere. However, we do still want Update Manager to check them, because
+  // they may be in use on the site. Normally, however, update_get_projects()
+  // skips hidden modules. So in this function, we basically repeat what
+  // update_get_projects() does, only making sure to "unhide" these modules
+  // before running them through the process of building up their project info.
+  $projects = array();
+  $module_data = system_rebuild_module_data();
+  $hide_modules = array_merge(_gardens_features_hidden_submodules(), _gardens_features_hidden_dependencies());
+  foreach ($module_data as &$file) {
+    // Unhide modules that we previously hid.
+    if (!empty($file->info['hidden']) && in_array($file->name, $hide_modules)) {
+      $file->info['hidden'] = FALSE;
+    }
+  }
+  $theme_data = system_rebuild_theme_data();
+  _update_process_info_list($projects, $module_data, 'module', TRUE);
+  _update_process_info_list($projects, $theme_data, 'theme', TRUE);
+  if (variable_get('update_check_disabled', FALSE)) {
+    _update_process_info_list($projects, $module_data, 'module', FALSE);
+    _update_process_info_list($projects, $theme_data, 'theme', FALSE);
+  }
+}
+
+/**
+ * Implements hook_init().
+ */
+function gardens_features_init() {
+  drupal_add_library('system', 'jquery.cookie');
+
+  // Add CSS
+  $path = drupal_get_path('module', 'gardens_features');
+  drupal_add_css($path . '/gardens_features.css', array('preprocess' => TRUE));
+  drupal_add_css($path . '/css/ie/gardens_features.lte-ie-8.css', array('group' => CSS_THEME, 'browsers' => array('IE' => 'lte IE 8', '!IE' => FALSE)));
+
+  // A bit ugly: We want to control the appearance of jQuery UI dialogs across
+  // Gardens (but not for Seven and its subthemes, which have their own jQuery UI theme).
+  drupal_theme_initialize();
+  if ($GLOBALS['theme_info']->info != 'seven' && (!isset($GLOBALS['theme_info']->base_theme) || $GLOBALS['theme_info']->base_theme != 'seven')) {
+    drupal_add_css(drupal_get_path('module', 'gardens_features') . '/gardens_features.jquery.ui.theme.css');
+  }
+}
+
+/**
+ * Implements hook_help().
+ */
+function gardens_features_help($path, $arg) {
+  if ($path == 'admin/config/search/xmlsitemap') {
+    return '<p>' . t("View and configure your site's active XML sitemap.") . '</p>';
+  }
+}
+
+/**
+ * Implements MODULE_preprocess_page().
+ */
+function gardens_features_preprocess_page(&$variables) {
+  if (gardens_features_hide_front_page_title()) {
+    $variables['title'] = '';
+  }
+}
+
+/**
+ * Implements MODULE_preprocess_html().
+ */
+function gardens_features_preprocess_html(&$variables) {
+  $path = drupal_get_path('module', 'gardens_features');
+  // Add custom JS
+  drupal_add_js($path . '/gardens_features.js', array('weight' => '500'));
+  if (gardens_features_hide_front_page_title()) {
+    // Fall back on the standard front page title.
+    $head_title = array(check_plain(variable_get('site_name', 'Drupal')));
+    if (variable_get('site_slogan', '')) {
+      $head_title[] = filter_xss_admin(variable_get('site_slogan', ''));
+    }
+    $variables['head_title'] = implode(' | ', $head_title);
+  }
+}
+
+/**
+ * If using the product template, page nodes on the front page (e.g., the
+ * product description node) should not display a title.
+ *
+ * @return
+ *   TRUE if the above is the case, FALSE otherwise.
+ */
+function gardens_features_hide_front_page_title() {
+  return drupal_is_front_page() && (variable_get('site_template_current_template', '') == 'product') && ($node = menu_get_object()) && isset($node->nid) && isset($node->type) && $node->type == 'page';
+}
+
+/**
+ * Implements hook_menu_alter().
+ */
+function gardens_features_menu_alter(&$items) {
+  // Restrict users to the one sitemap we start them out with.
+  if (isset($items['admin/config/search/xmlsitemap/add'])) {
+    $items['admin/config/search/xmlsitemap/add']['access callback'] = FALSE;
+  }
+  if (isset($items['admin/config/search/xmlsitemap/delete/%xmlsitemap_sitemap'])) {
+    $items['admin/config/search/xmlsitemap/delete/%xmlsitemap_sitemap']['access callback'] = FALSE;
+  }
+
+  // We don't want the rebuild link to be a tab, or show up in a menu tree (if,
+  // for example, the Management menu block is displayed).
+  if (isset($items['admin/config/search/xmlsitemap/rebuild'])) {
+    $items['admin/config/search/xmlsitemap/rebuild']['type'] = MENU_VISIBLE_IN_BREADCRUMB;
+  }
+
+  // We don't want the engine settings to be a separate page.
+  if (isset($items['admin/config/search/xmlsitemap/engines'])) {
+    $items['admin/config/search/xmlsitemap/engines']['access callback'] = FALSE;
+  }
+
+  // Give the configuration page menu item a description that makes sense for
+  // Gardens; this includes using the singular terminology ("XML sitemap")
+  // since we only allow one sitemap per site.
+  // @todo Revisit this once http://drupal.org/node/834754 is resolved, since
+  //   we may decide that the wording the module ultimately uses will work well
+  //   enough for us.
+  if (isset($items['admin/config/search/xmlsitemap'])) {
+    $items['admin/config/search/xmlsitemap']['description'] = "Configure your site's XML sitemap to help search engines index your important pages.";
+  }
+
+  // Distinguish Views and Simple Views.
+  if (isset($items['admin/structure/simpleviews'])) {
+    $items['admin/structure/simpleviews']['description'] = 'Create simple lists of content.';
+  }
+  if (isset($items['admin/structure/views'])) {
+    $items['admin/structure/views']['description'] = 'Create custom displays or mashups of content, media, users, and more.';
+  }
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function gardens_features_form_alter(&$form, $form_state, $form_id) {
+  // Hide the XML sitemap settings on a variety of forms.
+  if (in_array($form_id, array('menu_edit_menu', 'menu_edit_item', 'node_type_form', 'taxonomy_form_vocabulary', 'taxonomy_form_term')) || !empty($form['#node_edit_form'])) {
+    $form['xmlsitemap']['#access'] = FALSE;
+  }
+  // File and image fields provide a setting for the URI scheme (public,
+  // private, etc.). If there's only one option and it's the default value,
+  // there's no point in making it visible to the user. Note that there are
+  // multiple forms that present field settings, including:
+  // - field_ui_field_edit_form()
+  // - field_ui_field_settings_form()
+  if (!empty($form['field']['settings']['uri_scheme']['#options']) && count($form['field']['settings']['uri_scheme']['#options']) == 1 && isset($form['field']['settings']['uri_scheme']['#default_value']) && $form['field']['settings']['uri_scheme']['#default_value'] === key($form['field']['settings']['uri_scheme']['#options'])) {
+    $form['field']['settings']['uri_scheme']['#access'] = FALSE;
+  }
+
+  // The Views UI has modal dialog buttons labeled "Apply" that dismiss the
+  // modal dialog, but this is inconsistent with desktop UI guidelines, where
+  // "Apply" is only used when applying changes without dismissing.
+  // @see http://msdn.microsoft.com/en-us/library/aa974176.aspx#commitButtonLabels
+  if (strpos($form_id, 'views_ui_') === 0 && isset($form['buttons']['submit'])) {
+    if ($form['buttons']['submit']['#value'] === t('Apply')) {
+      $form['buttons']['submit']['#value'] = t('OK');
+    }
+    if (isset($form['buttons']['submit']['#values']) && in_array(t('Apply'), $form['buttons']['submit']['#values'])) {
+      $form['buttons']['submit']['#values'][] = t('OK');
+    }
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function gardens_features_form_xmlsitemap_sitemap_list_form_alter(&$form, &$form_state) {
+  // Redirect edit links on the overview page to the settings page, since that
+  // is a more useful page for people to be able to edit their sitemap details.
+  // Also remove the delete links, since we deny access to their callback in
+  // hook_menu_alter().
+  if (!empty($form['sitemaps']['#options'])) {
+    foreach ($form['sitemaps']['#options'] as &$option) {
+      if (isset($option['operations']['data']['#links']['edit']['href'])) {
+        $option['operations']['data']['#links']['edit']['href'] = 'admin/config/search/xmlsitemap/settings';
+      }
+      unset($option['operations']['data']['#links']['delete']);
+      // There is no need to redirect them back to the listing page after they
+      // have submitted the settings form.
+      unset($option['operations']['data']['#links']['edit']['query']['destination']);
+    }
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function gardens_features_form_xmlsitemap_settings_form_alter(&$form, &$form_state) {
+  // Expose the base URL setting to allow Gardens sites with custom domains to
+  // know (and change) the URL being used for their sitemap.
+  $form['xmlsitemap_base_url'] = $form['advanced']['xmlsitemap_base_url'];
+  $form['xmlsitemap_base_url']['#title'] = t('URL to generate links from');
+  $form['xmlsitemap_base_url']['#description'] = t('All links within the sitemap are relative to this URL.');
+  $form['xmlsitemap_base_url']['#weight'] = -5;
+  unset($form['advanced']['xmlsitemap_base_url']);
+
+  // Add a fieldset for the engine settings.
+  $form['engines'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Search engine settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+    '#weight' => 0,
+  );
+  // Now add the engine settings form to it. We have to undo the effects of
+  // system_settings_form() here, which is ugly, but that's still better than
+  // duplicating the form code.
+  require_once drupal_get_path('module', 'xmlsitemap_engines') . '/xmlsitemap_engines.admin.inc';
+  $engine_settings_form = xmlsitemap_engines_settings_form();
+  unset($engine_settings_form['actions']);
+  unset($engine_settings_form['#submit']);
+  unset($engine_settings_form['#theme']);
+  $form['engines'][] = $engine_settings_form;
+
+  // Hide advanced settings that we don't want to expose.
+  $form['advanced']['#access'] = FALSE;
+  $form['xmlsitemap_prefetch_aliases']['#access'] = FALSE;
+  $form['xmlsitemap_minimum_lifetime']['#access'] = FALSE;
+  $form['xmlsitemap_xsl']['#access'] = FALSE;
+  $form['engines'][0]['xmlsitemap_engines_minimum_lifetime']['#access'] = FALSE;
+  $form['engines'][0]['xmlsitemap_engines_submit_updated']['#access'] = FALSE;
+  $form['engines'][0]['xmlsitemap_engines_submit_explanation_text'] = array(
+    '#prefix' => '<div class="form-item" style="padding-bottom: 0;"><div class="description">',
+    '#suffix' => '</div></div>',
+    '#markup' => t('The sitemap is submitted each time it changes (at most once per day).'),
+  );
+
+  // Add our CSS for the page.
+  $form['#attached']['css'][] = drupal_get_path('module', 'gardens_features') . '/gardens_features.xmlsitemap.css';
+
+  // Change the vertical tabs to actually allow things to be configured from
+  // inside them.
+  foreach (xmlsitemap_get_link_info() as $entity => $entity_info) {
+    if (!empty($entity_info['bundles'])) {
+      // Hide the default vertical tab content.
+      $form[$entity]['summary']['#access'] = FALSE;
+      // Add our replacement form elements.
+      $form[$entity]['description'] = array(
+        '#prefix' => '<div class="description">',
+        '#suffix' => '</div>',
+        '#markup' => t('Control whether each %bundle-label appears in your sitemap by default, and set its priority (which influences how search engines weight it relative to other pages on your site).', array('%bundle-label' => $entity_info['bundle label'])),
+      );
+      $form[$entity]['#tree'] = TRUE;
+      $form[$entity]['configuration'] = array(
+        '#prefix' => '<div class="xmlsitemap-bundle-configuration">',
+        '#suffix' => '</div>',
+      );
+      foreach ($entity_info['bundles'] as $bundle => $bundle_info) {
+        $settings = xmlsitemap_link_bundle_load($entity, $bundle);
+        $form[$entity]['configuration'][$bundle]['title'] = array(
+          '#prefix' => '<h3>',
+          '#suffix' => '</h3>',
+          '#markup' => check_plain($bundle_info['label']),
+        );
+        $form[$entity]['configuration'][$bundle]['status'] = array(
+          '#type' => 'checkbox',
+          '#title' => t('Include in sitemap'),
+          '#default_value' => $settings['status'],
+        );
+        $form[$entity]['configuration'][$bundle]['priority'] = array(
+          '#type' => 'select',
+          '#title' => t('with priority'),
+          '#options' => xmlsitemap_get_priority_options(),
+          '#default_value' => $settings['priority'],
+          '#states' => array(
+            'visible' => array(
+              ':input[name="' . $entity . '[configuration][' . $bundle . '][status]"]' => array('checked' => TRUE),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  // Our custom submit handler must run first, so that we can remove elements
+  // before system_settings_form_submit() puts them in the {variable} table.
+  $form['#submit'] = array_merge(array('gardens_features_xmlsitemap_settings_form_submit'), $form['#submit']);
+}
+
+/**
+ * Custom submit handler for xmlsitemap_settings_form().
+ */
+function gardens_features_xmlsitemap_settings_form_submit($form, &$form_state) {
+  // Do not save the active_tab variable. We need this to prevent the
+  // xmlsitemap_form_submit_flag_regenerate() submit handler from trigger a
+  // message even when nothing in the form has changed, but also, this variable
+  // doesn't make sense to save in the database anyway, since it's just used by
+  // vertical tabs.
+  // TODO: This should be submitted as a patch to the module.
+  unset($form_state['values']['xmlsitemap_settings__active_tab']);
+
+  // Go through each entity from the vertical tabs and save its configuration.
+  foreach (xmlsitemap_get_link_info() as $entity => $entity_info) {
+    if (isset($form_state['values'][$entity]['configuration'])) {
+      // Save the configuration.
+      foreach ($form_state['values'][$entity]['configuration'] as $bundle => $settings) {
+        $existing_settings = xmlsitemap_link_bundle_load($entity, $bundle);
+        xmlsitemap_link_bundle_settings_save($entity, $bundle, $settings);
+        if ($settings != array_intersect_key($existing_settings, $settings)) {
+          // Ugly hack to force the "xmlsitemap_regenerate_needed" variable to
+          // change from off to on, thereby triggering an appropriate message
+          // in the xmlsitemap_form_submit_flag_regenerate() submit handler.
+          // The actual saving of this variable will then be done by
+          // system_settings_form_submit()... yikes.
+          variable_set('xmlsitemap_regenerate_needed', FALSE);
+          $form_state['values']['xmlsitemap_regenerate_needed'] = TRUE;
+        }
+      }
+      // Prevent system_settings_form_submit() from saving this form element as
+      // a variable.
+      unset($form_state['values'][$entity]);
+    }
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function gardens_features_form_system_modules_alter(&$form, &$form_state) {
+  // Our submit handler must run first, since we want to modify
+  // $form_state['values'] before the main submit handler has a chance to
+  // process it.
+  $form['#submit'] = array_merge(array('gardens_features_system_modules_submit'), $form['#submit']);
+}
+
+/**
+ * Custom submit handler for the system_modules() admin page.
+ */
+function gardens_features_system_modules_submit($form, &$form_state) {
+  // We only act on the initial form submission; if we are coming from the
+  // secondary confirmation form, there is nothing to do here because we have
+  // already added our modules to the list on the first pass through.
+  if (isset($form_state['storage']['modules'])) {
+    return;
+  }
+
+  // Define preliminary variables.
+  $hidden_submodules = _gardens_features_hidden_submodules();
+  $hidden_dependencies = _gardens_features_hidden_dependencies();
+  $module_dependencies = _gardens_features_module_build_dependencies();
+  $modules = &$form_state['values']['modules'];
+  $module_status = array();
+  foreach ($modules as $group) {
+    foreach ($group as $module => $data) {
+      $module_status[$module] = $data['enable'];
+    }
+  }
+
+  // Enable any of our hidden submodules when the form submission will result
+  // in all the modules it requires being enabled too.
+  foreach ($hidden_submodules as $submodule) {
+    if (empty($module_status[$submodule]) && !module_exists($submodule) && !empty($module_dependencies[$submodule]->requires)) {
+      // Start by assuming that we are going to enable the submodule, but bail
+      // out as soon as we find a dependency that isn't currently enabled and
+      // isn't scheduled to be either.
+      $enable = TRUE;
+      foreach (array_keys($module_dependencies[$submodule]->requires) as $dependency) {
+        // If the dependency is not enabled nor requested to be enabled, we
+        // need to check further.
+        if (empty($module_status[$dependency]) && !module_exists($dependency)) {
+          // Bail out only if the dependency won't be auto-enabled by other
+          // modules that require it.
+          $dependency_auto_enabled = FALSE;
+          foreach (array_keys($module_dependencies[$dependency]->required_by) as $other_dependent) {
+            if ($other_dependent != $submodule && !empty($module_status[$other_dependent])) {
+              $dependency_auto_enabled = TRUE;
+            }
+          }
+          if (!$dependency_auto_enabled) {
+            $enable = FALSE;
+          }
+        }
+      }
+      // If we are enabling the submodule, add it to the list.
+      if ($enable) {
+        $group = $module_dependencies[$submodule]->info['package'];
+        $modules[$group][$submodule]['enable'] = TRUE;
+        $module_status[$submodule] = TRUE;
+      }
+    }
+  }
+
+  // Enable any of our hidden dependencies whenever the form submission will
+  // result in at least one module that requires it being enabled too. (Note
+  // that we have to do this even if the module that requires it was already
+  // enabled, to prevent Drupal from display a confirmation form.)
+  foreach ($hidden_dependencies as $module) {
+    foreach (array_keys($module_dependencies[$module]->required_by) as $dependent) {
+      // Check if the dependent module is being enabled directly (or is already
+      // enabled), or if it is scheduled to be enabled due to another
+      // dependency; if so, enable this one too.
+      if (!empty($module_status[$dependent]) || array_intersect_key($module_dependencies[$dependent]->requires, array_filter($module_status))) {
+        $group = $module_dependencies[$module]->info['package'];
+        $modules[$group][$module]['enable'] = TRUE;
+        $module_status[$module] = TRUE;
+      }
+    }
+  }
+
+  // When a module is being disabled, we need to also disable its hidden
+  // dependents or dependencies as appropriate. (The former is especially
+  // important, because we never want to have a module enabled when modules
+  // that it depends on are disabled.)
+  foreach ($module_status as $module => $status) {
+    if (!$status && module_exists($module)) {
+      foreach (array_keys($module_dependencies[$module]->required_by) as $dependent) {
+        // Add the hidden submodule to the list of modules to disable if it's
+        // in the process of being enabled, or is already enabled and not in
+        // the process of being disabled.
+        if (in_array($dependent, $hidden_submodules) && (!empty($module_status[$dependent]) || (empty($module_status[$dependent]) && module_exists($dependent)))) {
+          $group = $module_dependencies[$dependent]->info['package'];
+          $modules[$group][$dependent]['enable'] = FALSE;
+          $module_status[$dependent] = FALSE;
+        }
+      }
+    }
+  }
+  // Start the loop again, since modules to disable may have been added to the
+  // list above.
+  foreach ($module_status as $module => $status) {
+    if (!$status && module_exists($module)) {
+      foreach (array_keys($module_dependencies[$module]->requires) as $dependency) {
+        // Add the hidden dependency to the list of modules to disable if it's
+        // not required by anything that will still be enabled, and if it's (a)
+        // in the process of being enabled, or (b) already enabled and not in
+        // the process of being disabled.
+        if (in_array($dependency, $hidden_dependencies) && !array_intersect_key($module_dependencies[$dependency]->required_by, array_filter($module_status)) && (!empty($module_status[$dependency]) || (empty($module_status[$dependency]) && module_exists($dependency)))) {
+          $group = $module_dependencies[$dependency]->info['package'];
+          $modules[$group][$dependency]['enable'] = FALSE;
+          $module_status[$dependency] = FALSE;
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Helper function to calculate module dependencies without a full rebuild.
+ *
+ * This avoids some load by not doing a full system_rebuild_module_data() when
+ * there is no need to.
+ */
+function _gardens_features_module_build_dependencies() {
+  $modules = db_query('SELECT name, info FROM {system} WHERE type = :type', array(':type' => 'module'))->fetchAllAssoc('name');
+  foreach ($modules as &$module) {
+    $module->info = unserialize($module->info);
+  }
+  return _module_build_dependencies($modules);
+}
+
+/**
+ * Returns modules that are auto-enabled when all their dependencies are met.
+ *
+ * These modules are typically part of a package that contains many submodules,
+ * but in Gardens we just want to have one choice, with the submodules turned
+ * on automatically whenever they are able to be.
+ *
+ * @return
+ *   An array of module names.
+ */
+function _gardens_features_hidden_submodules() {
+  $modules = array(
+    'xmlsitemap_engines',
+    'xmlsitemap_menu',
+    'xmlsitemap_node',
+    'xmlsitemap_taxonomy',
+    'views_ui',
+  );
+
+  // Allow the list to be altered (mainly so it's possible to test this code).
+  drupal_alter('gardens_features_hidden_submodules', $modules);
+
+  return $modules;
+}
+
+/**
+ * Returns modules that are auto-enabled whenever any dependents are enabled.
+ *
+ * These are typically modules which are required for a major feature in
+ * Gardens to work correctly, but which we do not want to expose on the modules
+ * page, nor leave on all the time for all Gardens sites. So instead, we enable
+ * them whenever a module that requires them is enabled.
+ *
+ * @return
+ *   An array of module names.
+ */
+function _gardens_features_hidden_dependencies() {
+  $modules = array(
+    'webform',
+    'form_builder',
+    'form_builder_webform',
+    'options_element',
+    'ux_elements',
+    'ctools',
+  );
+
+  // Allow the list to be altered (mainly so it's possible to test this code).
+  drupal_alter('gardens_features_hidden_dependencies', $modules);
+
+  return $modules;
+}
+
+/**
+ * Implements MODULE_preprocess_node().
+ */
+function gardens_features_preprocess_node(&$variables) {
+  // Give each node type title its own class.
+  $variables['title_attributes_array']['class'][] = $variables['type'] . '-header';
+
+  // Hide the title on certain node types where it makes no sense.
+  if (in_array($variables['type'], array('customer', 'testimonial'))) {
+    $variables['title'] = '';
+  }
+
+  // Add a special label to FAQ items nodes when they are not displayed on
+  // their own page.
+  if ($variables['type'] == 'faq_item' && !$variables['page']) {
+    $variables['icon'] = array(
+      '#markup' => '<div class="faq-item-question-label">Q</div>',
+    );
+    $variables['title_attributes_array']['class'][] = 'faq-item-inline-question-title';
+  }
+
+  // Customer nodes should never get a "read more" link, even when in teaser
+  // mode.
+  if ($variables['type'] == 'customer') {
+    unset($variables['content']['links']['node']['#links']['node-readmore']);
+  }
+
+  // Testimonial authors and affiliations should be rendered together.
+  if ($variables['type'] == 'testimonial') {
+    if (isset($variables['content']['field_testimonial_author'][0]['#markup'])) {
+      $variables['content']['field_testimonial_author'][0]['#markup'] = '&ndash;' . $variables['content']['field_testimonial_author'][0]['#markup'];
+    }
+    if (isset($variables['content']['field_testimonial_affiliation'])) {
+      $affiliation = drupal_render($variables['content']['field_testimonial_affiliation']);
+      if (!empty($affiliation)) {
+        $variables['content']['field_testimonial_author'][0]['#markup'] .= ', ' . $affiliation;
+      }
+    }
+  }
+}
+
+/**
+ * Preprocess function for theme_styles().
+ */
+function gardens_features_preprocess_styles(&$variables) {
+  $instance = $variables['instance'];
+  $container = $instance->variables['container']['name'];
+
+  // Add an indicator icon to thumbnail images of video.
+  if ($container == 'media_youtube' && isset($instance->image_style)) {
+    $variables['output'] .= '<span class="gardens-features-video-indicator"></span>';
+  }
+
+  // Legacy compatibility with Styles 1.x.
+  $instance->array_push('classes', 'styles-field-' . $variables['field_type']);
+  $instance->array_push('classes', 'styles-style-' . $variables['style_name']);
+  $instance->array_push('classes', 'styles-container-' . $container);
+  $instance->set_wrapper_type('div');
+  $variables['prefix'] = $instance->get_prefix();
+  $variables['suffix'] = $instance->get_suffix();
+}
+
+function gardens_features_preprocess_block(&$vars) {
+  // For the short term, we'll scope the menus in just the navigation region as dropdowns
+  $region = $vars['block']->region;
+  $allowedRegions = array('navigation');
+  $hasSubmenu = false;
+  if(in_array($region, $allowedRegions)) {
+    $keys = element_children($vars['elements']);
+    foreach($keys as $key) {
+      $element = $vars['elements'][$key];
+      if (isset($element['#original_link']) && $element['#original_link']['expanded'] && $element['#original_link']['has_children']) {
+        $hasSubmenu = true;
+      }
+    }
+    if ($hasSubmenu) {
+      $path = drupal_get_path('module', 'gardens_features');
+      drupal_add_js($path . '/js/superfish.js');
+      drupal_add_js($path . '/js/hoverIntent.js');
+      // Add custom CSS
+      drupal_add_css($path . '/css/dropdown.css');
+      $vars['classes_array'][] = 'menu-dropdown';
+    }
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function gardens_features_form_media_add_upload_alter(&$form, &$form_state, $form_id) {
+  // If only certain media types are allowed, reduce the set of allowed
+  // extensions accordingly. This logic is not part of the Media module,
+  // because the Media module implements OR logic for mapping a file to a media
+  // type, so it's theoretically possible for a file without one of the known
+  // image extensions to still be an image. But we drop support for that edge
+  // case in favor of improving the Upload UI.
+  // @todo This can be abstracted to work generically for all media types, but
+  //   is currently just focused on images, because that's the use-case for
+  //   Gardens.
+  if (isset($form['#validators']['media_file_validate_types'][0]) && isset($form['upload']['#upload_validators']['file_validate_extensions'][0])) {
+    // @todo At this time, Gardens does not support uploaded video (only embeds
+    //   from a provider site like YouTube), so even if the media browser
+    //   context allows video (e.g., from the Gallery), we constrain the Upload
+    //   tab to just images.
+    if (array_values(array_diff($form['#validators']['media_file_validate_types'][0], array('video'))) === array('image')) {
+      $image_type = media_type_load('image');
+      $all_extensions = explode(' ', $form['upload']['#upload_validators']['file_validate_extensions'][0]);
+      $image_extensions = array_intersect($all_extensions, $image_type->type_callback_args['extensions']);
+      $form['upload']['#upload_validators']['file_validate_extensions'][0] = implode(' ', $image_extensions);
+      // If the description already includes the contents of
+      // theme_file_upload_help(), replace it with the reduced set of
+      // extensions.
+      // @todo Fix media_add_upload() to add the file upload help later in the
+      //   pipeline (e.g., in a #process or #pre_render function), so that this
+      //   code can be removed.
+      if (!empty($all_extensions) && isset($form['upload']['#description'])) {
+        $form['upload']['#description'] = str_replace(check_plain(implode(' ', $all_extensions)), check_plain(implode(' ', $image_extensions)), $form['upload']['#description']);
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function gardens_features_form_media_add_upload_multiple_alter(&$form, &$form_state, $form_id) {
+  // We want the same alteration of the "upload" form regardless of whether
+  // it's single or multi.
+  gardens_features_form_media_add_upload_alter($form, $form_state, $form_id);
+}
+
+/**
+ * Implements hook_media_browser_plugins_alter.
+ *
+ * Used to rename the tabs in the media browser when in the browser.
+ */
+function gardens_features_media_browser_plugins_alter(&$plugins) {
+  $current_params = media_get_browser_params();
+  // Only rename when launched from the Gallery, since these tab titles don't
+  // make as much sense when the media browser is launched from wysiwyg or
+  // admin/content/media.
+  if (isset($current_params['id']) && in_array($current_params['id'], array('media_gallery', 'media_wysiwyg'))) {
+    $plugins['upload']['#title'] = t('Upload images');
+    $plugins['media_internet']['#title'] = t('Embed image/video');
+    if (isset($plugins['library'])) {
+      $plugins['library']['#title'] = t('Browse library');
+    }
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function gardens_features_form_media_internet_add_alter(&$form, &$form_state) {
+  // The media_internet and media_youtube modules need to be generic, and not
+  // make assumptions about what providers and other media browser plugin
+  // modules are enabled, but for a Gardens site, we have tighter control of
+  // what's enabled, and can therefore tailor the screen text to be simpler.
+  if (empty($form['#validators']['media_file_validate_types'])) {
+    // Text for when any media type is allowed (e.g., from admin/content/media).
+    $form['embed_code']['#title'] = t('URL');
+    $form['embed_code']['#description'] = t('Paste the URL of a file.');
+  }
+  elseif (in_array('video', $form['#validators']['media_file_validate_types'][0])) {
+    // Text for when only certain types are allowed, and video is among them
+    // (e.g., from a Gallery).
+    $form['embed_code']['#title'] = t('Image / video URL');
+    $form['embed_code']['#description'] = t('Paste the URL of an image or YouTube video, e.g., %url', array('%url' => 'http://www.youtube.com/watch?v=Duow7C29Rz4'));
+  }
+  else {
+    // Text for when only certain types are allowed, and video is not one of
+    // them (e.g., from wysiwyg).
+    $form['embed_code']['#title'] = t('Image URL');
+    $form['embed_code']['#description'] = t('Paste the URL of an image.');
+  }
+
+  // Hide the providers list. Gardens currently only supports YouTube, so this
+  // isn't super helpful.
+  if (isset($form['providers'])) {
+    $form['providers']['#access'] = FALSE;
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function gardens_features_form_views_ui_add_form_alter(&$form, $form_state) {
+  // This is a temporary workaround to force all jump menus created from the
+  // views wizard to use the "fields" row plugin, since that's the only one
+  // that is expected to work correctly. We should remove this code once the
+  // options are properly limited by Views itself.
+  foreach (array('page', 'block') as $type) {
+    if (isset($form['displays'][$type]['options']['style']['style_plugin']['#default_value'])) {
+      $style_plugin = $form['displays'][$type]['options']['style']['style_plugin']['#default_value'];
+      if ($style_plugin == 'jump_menu') {
+        $form['displays'][$type]['options']['style']['row_plugin']['#access'] = FALSE;
+        $form['displays'][$type]['options']['style']['row_plugin']['#default_value'] = 'fields';
+        $form['displays'][$type]['options']['style']['row_plugin_trigger_update']['#access'] = FALSE;
+        $form['displays'][$type]['options']['style']['row_options']['#access'] = FALSE;
+        $form['displays'][$type]['options']['style']['row_plugin_description'] = array('#markup' => '<span>' . t('of fields') . '</span>');
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function gardens_features_form_views_ui_edit_form_alter(&$form, $form_state) {
+  // It's expected that many Gardens users will be able to accomplish what they
+  // want via the contextual links in the Views preview, so hide the bulk of the
+  // edit form until it's needed.
+  if (isset($form['displays']['settings'])) {
+    $form['displays']['settings']['#attributes']['class'][] = 'ctools-collapsed';
+    $form['displays']['settings']['#attributes']['class'][] = 'ctools-collapsible-remember';
+    // Add the word "Edit" to the title of the collapsed section, so it's
+    // clear what will happen when they click on it.
+    $display_title = views_ui_get_display_label($form_state['view'], $form_state['display_id'], FALSE);
+    $form['displays']['settings']['tab_title']['#markup'] = '<h2 id="edit-display-settings-title" class="ctools-collapsible-handle">' . t('Edit @display_title details', array('@display_title' => $display_title)) . '</h2>';
+  }
+}
+
+/**
+ * Implements hook_views_ui_display_tab_alter().
+ */
+function gardens_features_views_ui_display_tab_alter(&$build) {
+  // These options are probably not useful to Gardens users.
+  foreach (array('display_comment', 'enabled', 'hide_attachment_summary') as $key) {
+    if (isset($build['details']['columns']['third']['collapse']['other'][$key])) {
+      $build['details']['columns']['third']['collapse']['other'][$key]['#access'] = FALSE;
+    }
+  }
+}
+
+/**
+ * Implements hook_wysiwyg_editor_settings_alter().
+ */
+function gardens_features_wysiwyg_editor_settings_alter(&$settings, &$context) {
+  // CKEditor 3.5 added an IFRAME plugin, but it converts width="100%" to
+  // width="100". Until that's fixed, don't use the plugin.
+  if ($context['editor']['name'] == 'ckeditor' && version_compare($context['editor']['installed version'], '3.5.0.6260', '>=')) {
+    if (empty($settings['removePlugins'])) {
+      $settings['removePlugins'] = 'iframe';
+    }
+    elseif (strpos($settings['removePlugins'], 'iframe') === FALSE) {
+      $settings['removePlugins'] .= ',iframe';
+    }
+  }
+}
+
+/**
+ * Implements hook_styles_default_styles().
+ *
+ * Pending resolution of http://drupal.org/node/1026790#comment-4258224,
+ * http://drupal.org/node/1058056 and a robust Styles UI module, expose
+ * administrator-defined image styles as File Styles.
+ */
+function gardens_features_styles_default_styles() {
+  $styles = array();
+  foreach (image_styles() as $style_name => $image_style) {
+    if (!($image_style['storage'] & IMAGE_STORAGE_MODULE)) {
+      $styles[$style_name] = array(
+        'label' => $style_name,
+        'description' => 'A custom image style.',
+      );
+    }
+  }
+  return array('file' => array('styles' => $styles));
+}
+
+/**
+ * Implements hook_styles_default_presets_alter().
+ *
+ * @see gardens_features_styles_default_styles()
+ */
+function gardens_features_styles_default_presets_alter(&$styles) {
+  $containers = array('image');
+  if (module_exists('media_youtube')) {
+    $containers[] = 'media_youtube';
+  }
+  $custom_image_styles = gardens_features_styles_default_styles();
+  $custom_image_styles = $custom_image_styles['file']['styles'];
+  foreach (array_keys($custom_image_styles) as $image_style) {
+    foreach ($containers as $container) {
+      $styles['file']['containers'][$container]['styles'][$image_style]['default preset'] = $image_style;
+      $styles['file']['containers'][$container]['presets'][$image_style] = array(
+        array(
+          'name' => 'image_style',
+          'settings' => array(
+            'image_style' => $image_style,
+          ),
+        ),
+        array(
+          'name' => 'thumbnail',
+          'settings' => array(),
+        ),
+      );
+    }
+  }
+}
+
+/**
+ * Implements hook_image_style_save().
+ *
+ * gardens_features_styles_default_styles() exposes administrator defined image
+ * styles as File Styles, and therefore, as File Field formatters. These must be
+ * updated when the image style name is changed, or an image style is deleted.
+ */
+function gardens_features_image_style_save($style) {
+  if (isset($style['old_name']) && $style['old_name'] != $style['name']) {
+    $instances = array();
+    $fields = field_read_fields(array('type' => 'file'), array('include_inactive' => TRUE));
+    foreach ($fields as $field) {
+      $instances = array_merge($instances, field_read_instances(array('field_id' => $field['id']), array('include_inactive' => TRUE)));
+    }
+    foreach ($instances as $instance) {
+      $update_instance = FALSE;
+      foreach ($instance['display'] as $view_mode => $display) {
+        if ($display['type'] == 'styles_file_' . $style['old_name']) {
+          $update_instance = TRUE;
+          $instance['display'][$view_mode]['type'] = $style['name'] ? ('styles_file_' . $style['name']) : 'styles_file_original';
+        }
+      }
+      if ($update_instance) {
+        field_update_instance($instance);
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_image_style_delete().
+ */
+function gardens_features_image_style_delete($style) {
+  gardens_features_image_style_save($style);
+}
+
+/**
+ * Implements hook_image_style_flush().
+ *
+ * gardens_features_styles_default_styles() exposes administrator defined image
+ * styles as File Styles, so all Styles module caches must be flushed when an
+ * image style is flushed.
+ */
+function gardens_features_image_style_flush($style) {
+  if (module_exists('styles')) {
+    styles_style_flush();
+  }
+}

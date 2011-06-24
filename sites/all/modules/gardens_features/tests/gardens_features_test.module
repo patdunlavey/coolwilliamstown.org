@@ -1,0 +1,40 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * Testing module to help test Gardens features.
+ */
+
+/**
+ * Implements hook_gardens_features_hidden_submodules_alter().
+ */
+function gardens_features_test_gardens_features_hidden_submodules_alter(&$modules) {
+  // When the relevant tests are being run, replace the submodule list with one
+  // intended for testing.
+  if (variable_get('gardens_features_test_submodules')) {
+    $modules = array('gardens_features_test_submodule');
+  }
+}
+
+/**
+ * Implements hook_gardens_features_hidden_dependencies_alter().
+ */
+function gardens_features_test_gardens_features_hidden_dependencies_alter(&$modules) {
+  // When the relevant tests are being run, replace the submodule list with one
+  // intended for testing.
+  if (variable_get('gardens_features_test_dependencies')) {
+    $modules = array('forum', 'poll');
+  }
+}
+
+/**
+ * Implements hook_system_info_alter().
+ */
+function gardens_features_test_system_info_alter(&$info, $file, $type) {
+  // Allow the testing submodule to appear on the modules page during test runs
+  // that need it to.
+  if (variable_get('gardens_features_test_dependencies') && $file->name == 'gardens_features_test_submodule') {
+    $info['hidden'] = FALSE;
+  }
+}

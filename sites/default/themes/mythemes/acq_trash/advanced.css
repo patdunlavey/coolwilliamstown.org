@@ -1,0 +1,19 @@
+.stack-navigation {
+margin-top:0;
+}
+.menu .expanded .menu {
+display:block;
+}
+
+div#block-menu-menu-site-guide {
+padding:1px 4px 4px 10px;
+background-color:#3477A4;
+color:#ffffff;
+}
+div#block-menu-menu-site-guide a {
+color:#ffffff;
+}
+
+#main li {
+list-style-position: inside;
+}

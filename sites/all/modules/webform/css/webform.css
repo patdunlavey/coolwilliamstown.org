@@ -1,0 +1,18 @@
+
+/**
+ * Front-end styling for the display of webforms.
+ */
+
+input.webform-calendar {
+  padding: 3px;
+  vertical-align: top;
+}
+.webform-container-inline div,
+.webform-container-inline div.form-item {
+  display: inline;
+}
+.webform-component-select > label.option + .form-checkboxes,
+.webform-component-select > label.option + .form-radios {
+  display: inline-block;
+  vertical-align: top;
+}

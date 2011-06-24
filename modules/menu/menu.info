@@ -1,0 +1,14 @@
+; $Id$
+name = Menu
+description = Allows administrators to customize the site navigation menu.
+package = Core
+version = VERSION
+core = 7.x
+files[] = menu.test
+configure = admin/structure/menu
+
+; Information added by drupal.org packaging script on 2011-05-25
+version = "7.1"
+project = "drupal"
+datestamp = "1306354915"
+

@@ -1,0 +1,111 @@
+
+
+#sidebar-a li a {
+  font-weight: bold;
+}
+
+#navigation #navigation-region .content ul {
+  border-left-width: 0px;
+  border-right-width: 0px;
+}
+
+#preheader {
+  padding-top: 0px;
+  padding-right: 0px;
+  padding-bottom: 0px;
+  padding-left: 0px;
+  border-bottom-width: 0px;
+}
+
+#main #page-title {
+  color: #3477a4;
+}
+
+a {
+  font-weight: normal;
+  text-decoration: underline;
+}
+
+#sidebar-a ul li {
+  border-style: none;
+  background-color: #3477a4;
+}
+
+#content-inner .box {
+  padding-left: 0px;
+  padding-right: 0px;
+}
+
+#content-inner {
+  padding-top: 0px;
+}
+
+#sidebar-a .block {
+  padding-left: 10px;
+  background-color: #3477a4;
+  padding-right: 0px;
+  padding-top: 4px;
+  margin-top: 8px;
+}
+
+#sidebar-a {
+  padding-left: 0px;
+  padding-right: 0px;
+}
+
+#banner-region #rotating-banner-2 .rb-slides {
+  border-color: #3477a4;
+}
+
+#main .field-item p {
+  color: #08437f;
+}
+
+#sidebar-a h2 {
+  font-family: 'Georgia','New Century Schoolbook','Nimbus Roman No9 L','serif';
+}
+
+#sidebar-b h2 {
+  font-family: 'Georgia','New Century Schoolbook','Nimbus Roman No9 L','serif';
+  color: #3477a4;
+}
+
+#main h2 a {
+  font-family: 'Georgia','New Century Schoolbook','Nimbus Roman No9 L','serif';
+  color: #3477a4;
+}
+
+#banner-region .rb-textbox-type-header a {
+  font-family: 'Georgia','New Century Schoolbook','Nimbus Roman No9 L','serif';
+}
+
+#header-inner #logo img {
+  background-image: url("images/ccbanner960_0.jpg");
+  background-repeat: no-repeat;
+}
+
+#header-inner .box {
+  padding-left: 0px;
+  padding-right: 0px;
+}
+
+#navigation-region .content ul {
+  background-color: #3477a4;
+  border-bottom-width: 0px;
+  border-style: solid;
+  border-top-width: 0px;
+}
+
+#banner {
+  padding-top: 0px;
+}
+
+#header {
+  padding-top: 10px;
+}
+
+#header-inner #site-name a {
+  font-family: 'Georgia','New Century Schoolbook','Nimbus Roman No9 L','serif';
+  text-transform: uppercase;
+}
+

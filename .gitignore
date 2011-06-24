@@ -1,0 +1,9 @@
+.svn
+.DS_Store
+.buildpath
+.project
+.settings
+/backup
+/tmp
+/sites/default/settings.php
+/sites/default/files/

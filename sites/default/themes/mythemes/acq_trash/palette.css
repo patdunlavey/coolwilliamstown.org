@@ -1,0 +1,281 @@
+
+body {
+  background-color: #ffffff;
+  color: #046380;
+}
+
+.form-submit {
+  background-color: #efecca;
+  color: #000000;
+}
+
+.site-slogan {
+  color: #a7a37e;
+}
+
+.wrapper-footer {
+  border-color: #046380;
+}
+
+.stack-preheader {
+  border-color: #046380;
+}
+
+.stack-content-inner {
+  border-color: #046380;
+}
+
+.stack-copyright .inner {
+  border-color: #046380;
+}
+
+.stack-navigation .menu li a {
+  color: #ffffff;
+}
+
+thead th {
+  border-bottom-color: #ffffff;
+}
+
+.menu-dropdown .menu .menu a {
+  border-color: #ffffff;
+}
+
+#block-feedback-feedback a {
+  background-color: #002f2f;
+  color: #ffffff;
+  border-color: #ffffff;
+}
+
+.rotating-banner .rb-slides {
+  border-color: #f7f5e5;
+}
+
+.stack-navigation .menu {
+  background-color: #046380;
+}
+
+.controls.buttons a.activeSlide {
+  background-color: #002f2f;
+}
+
+#block-feedback-feedback a:hover {
+  background-color: #a7a37e;
+}
+
+.form-submit + input {
+  background-color: #ffffff;
+}
+
+a {
+  color: #002f2f;
+}
+
+li a.active {
+  color: #002f2f;
+}
+
+.site-name a {
+  color: #002f2f;
+}
+
+.page-forum h1 {
+  color: #002f2f;
+}
+
+.messages {
+  color: #000000;
+}
+
+.messages ul {
+  color: #000000;
+}
+
+.messages ul li {
+  color: #000000;
+}
+
+.wrapper-header .active-trail a {
+  color: #000000;
+}
+
+.messages a {
+  color: #046380;
+}
+
+h1 {
+  color: #046380;
+}
+
+h2 {
+  color: #046380;
+}
+
+h3 {
+  color: #046380;
+}
+
+h4 {
+  color: #046380;
+}
+
+h5 {
+  color: #046380;
+}
+
+h6 {
+  color: #046380;
+}
+
+.forum a {
+  color: #046380;
+}
+
+#forum table thead tr th {
+  color: #046380;
+}
+
+#forum table thead tr th a {
+  color: #046380;
+}
+
+.rotating-banner {
+  color: #046380;
+}
+
+.rotating-banner a {
+  color: #046380;
+}
+
+h2 a {
+  color: #a7a37e;
+}
+
+a:hover {
+  color: #a7a37e;
+}
+
+h2 a:hover {
+  color: #e6e2af;
+}
+
+.forum .description {
+  color: #e6e2af;
+}
+
+.menu-dropdown .menu .expanded:hover > a {
+  background-color: #a7a37e;
+}
+
+.menu-dropdown .menu .active-trail:hover > a {
+  background-color: #a7a37e;
+}
+
+.stack-navigation .menu li a:hover {
+  background-color: #a7a37e;
+}
+
+.sidebar .block,.block-aggregator ul li + li {
+  border-color: #efecca;
+}
+
+.comment {
+  border-top-color: #e6e2af;
+}
+
+.comment-wrapper h2 {
+  border-top-color: #e6e2af;
+}
+
+.sidebar.left {
+  border-right-color: #e6e2af;
+}
+
+.sidebar.right {
+  border-left-color: #e6e2af;
+}
+
+tr.even td {
+  background-color: #faf9ee;
+}
+
+table tbody tr.even td.active {
+  background-color: #000000;
+}
+
+table tbody tr.odd td.active {
+  background-color: #000000;
+}
+
+
+#sidebar-a li a {
+  color: #faf9ee;
+}
+
+#sidebar-a h2 {
+  color: #acccd5;
+}
+
+#sidebar-a .form-item label {
+  color: #acccd5;
+}
+
+#navigation-region .content ul {
+  border-color: transparent;
+}
+
+#sidebar-a {
+  border-color: transparent;
+  color: #e6e2af;
+  background-color: transparent;
+}
+
+#preheader-second-region .block {
+  border-color: transparent;
+}
+
+#sidebar-a .block {
+  border-color: transparent;
+  color: #acccd5;
+}
+
+#sidebar-a .form-text {
+  background-color: #ffffff;
+}
+
+#sidebar-a #edit-submit {
+  background-color: #acccd5;
+}
+
+a {
+  color: #5796aa;
+}
+
+.pulldown-processed .sfHover {
+  background-color: #a7a37e;
+}
+
+.pulldown-processed li .last a {
+  border-bottom-color: #e6e2af;
+}
+
+.stack-navigation .menu .active-trail > a {
+  background-color: #a7a37e;
+}
+
+#sidebar-a .inner {
+  border-color: #acccd5;
+}
+
+#sidebar-a input {
+  background-color: #acccd5;
+}
+
+#sidebar-a .region-sidebar-a {
+  border-color: transparent;
+}
+
+.pulldown-processed li li a {
+  border-top-color: #e6e2af;
+}
+

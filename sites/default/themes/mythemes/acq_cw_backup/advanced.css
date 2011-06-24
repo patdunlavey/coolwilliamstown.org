@@ -1,0 +1,6 @@
+.stack-navigation {
+margin-top:0;
+}
+.menu .expanded .menu {
+display:block;
+}

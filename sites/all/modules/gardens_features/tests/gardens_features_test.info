@@ -1,0 +1,7 @@
+; $Id$
+name = "Gardens features tests"
+description = "Support module for Gardens features testing."
+package = Testing
+core = 7.x
+files[] = gardens_features_test.module
+hidden = TRUE

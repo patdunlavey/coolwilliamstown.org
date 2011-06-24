@@ -1,0 +1,7 @@
+name = Gardens features
+description = Enables small improvements designed to enhance the default features used in Drupal Gardens.
+core = 7.x
+files[] = gardens_features.module
+files[] = gardens_features.install
+files[] = gardens_features.test
+package = Drupal Gardens
