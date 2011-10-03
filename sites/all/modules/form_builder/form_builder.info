@@ -1,12 +1,11 @@
-; $Id: form_builder.info,v 1.4 2011/01/05 02:25:48 quicksketch Exp $
 name = Form builder
 description = Form building framework.
 dependencies[] = options_element
 core = 7.x
 
-; Information added by drupal.org packaging script on 2011-02-25
+; Information added by drupal.org packaging script on 2011-06-06
 version = "7.x-1.x-dev"
 core = "7.x"
 project = "form_builder"
-datestamp = "1296536400"
+datestamp = "1307319364"
 

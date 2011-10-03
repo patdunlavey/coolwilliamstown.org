@@ -1,4 +1,3 @@
-// $Id: media_youtube.js,v 1.1.2.4 2011/01/04 19:50:41 aaron Exp $
 
 /**
  * @file media_youtube/js/media_youtube.js
@@ -30,7 +29,7 @@ Drupal.behaviors.media_youtube = {
 
 Drupal.media_youtube.needFlash = function () {
   var id = $(this).attr('id');
-  var wrapper = $(this);
+  var wrapper = $('.media-youtube-preview-wrapper');
   var hw = Drupal.settings.media_youtube[id].height / Drupal.settings.media_youtube[id].width;
   wrapper.html('<div class="js-fallback">' + Drupal.t('You need Flash to watch this video. <a href="@flash">Get Flash</a>', {'@flash':'http://get.adobe.com/flashplayer'}) + '</div>');
   wrapper.height(wrapper.width() * hw);
@@ -49,7 +48,7 @@ Drupal.media_youtube.insertEmbed = function (embed_id) {
   var src = 'http://www.youtube.com/embed/' + settings.video_id;
 
   // Allow other modules to modify the video settings.
-  settings.options = {wmode : 'opaque'};
+  settings.options.wmode = 'opaque';
   $(window).trigger('media_youtube_load', settings);
 
   // Merge YouTube options (such as autoplay) into the source URL.
@@ -78,24 +77,22 @@ Drupal.media_youtube.insertEmbed = function (embed_id) {
 };
 
 Drupal.media_youtube.resizeEmbeds = function () {
-  for(var embed in Drupal.settings.media_youtube) {
-    Drupal.media_youtube.resizeEmbed(Drupal.settings.media_youtube[embed]);
-  }
+  $('.media-youtube-preview-wrapper').each(Drupal.media_youtube.resizeEmbed);
 };
 
-Drupal.media_youtube.resizeEmbed = function (embed) {
-  var video = $('#' + embed.id);
-  var wrapper = video.closest('.media-youtube-outer-wrapper');
-  var context = wrapper.parent();
+Drupal.media_youtube.resizeEmbed = function () {
+  var context = $(this).parent();
+  var video = $(this).children(':first-child');
+  var hw = Drupal.settings.media_youtube[$(this).attr('id')].hw;
   // Change the height of the wrapper that was given a fixed height by the
   // YouTube theming function.
-  wrapper
-    .height(context.width() * embed.hw + 15)
+  $(this)
+    .height(context.width() * hw)
     .width(context.width());
 
   // Change the attributes on the embed to match the new size.
   video
-    .height(context.width() * embed.hw + 15)
+    .height(context.width() * hw)
     .width(context.width());
 };
 

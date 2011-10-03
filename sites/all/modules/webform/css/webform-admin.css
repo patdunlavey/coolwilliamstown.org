@@ -89,6 +89,3 @@ tr.webform-add-form .tabledrag-changed {
 #webform-components tr.webform-add-form {
   background-color: inherit;
 }
-.webform-response tr > td {
-  width: 75%;
-}

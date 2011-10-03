@@ -52,7 +52,7 @@ function dialog_user_ajax_callback($type, $js) {
     dialog_display(TRUE);
     $content = drupal_get_form($form_id);
     $output[] = dialog_command_display($content, array('title' => $title));
-    ajax_render($output);
+    ajax_deliver(array('#type' => 'ajax', '#commands' => $output));
   }
   else {
     drupal_goto($path);

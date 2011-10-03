@@ -56,15 +56,15 @@ function webform_submission_update($node, $submission) {
   }
 
   // Update the main submission info.
-   db_update('webform_submissions')
-     ->fields(array(
-       'uid' => $submission->uid,
-       'submitted' => $submission->submitted,
-       'remote_addr' => $submission->remote_addr,
-       'is_draft' => $submission->is_draft,
-     ))
-     ->condition('sid', $submission->sid)
-     ->execute();
+  db_update('webform_submissions')
+    ->fields(array(
+      'uid' => $submission->uid,
+      'submitted' => $submission->submitted,
+      'remote_addr' => $submission->remote_addr,
+      'is_draft' => $submission->is_draft,
+    ))
+    ->condition('sid', $submission->sid)
+    ->execute();
 
   // If is draft, only delete data for components submitted, to
   // preserve any data from form pages not visited in this submission.
@@ -199,7 +199,7 @@ function webform_submission_send_mail($node, $submission, $emails = NULL) {
   $send_count = 0;
   foreach ($emails as $eid => $email) {
     // Set the HTML property based on availablity of MIME Mail.
-    $email['html'] = ($email['html'] && module_exists('mimemail'));
+    $email['html'] = ($email['html'] && webform_email_html_capable());
 
     // Pass through the theme layer if using the default template.
     if ($email['template'] == 'default') {
@@ -281,7 +281,7 @@ function webform_submission_send_mail($node, $submission, $emails = NULL) {
         'submission' => $submission,
       );
 
-      if (module_exists('mimemail')) {
+      if (webform_email_html_capable()) {
         // Load attachments for the e-mail.
         $attachments = array();
         if ($email['attachments']) {
@@ -289,8 +289,7 @@ function webform_submission_send_mail($node, $submission, $emails = NULL) {
           foreach ($node->webform['components'] as $component) {
             if (webform_component_feature($component['type'], 'attachment') && !empty($submission->data[$component['cid']]['value'][0])) {
               $file = webform_get_file($submission->data[$component['cid']]['value'][0]);
-              if ($file) {
-                $file->list = 1; // Needed to include in attachments.
+              if ($file && ($file->filepath = drupal_realpath($file->uri))) {
                 $attachments[] = $file;
               }
             }
@@ -300,8 +299,14 @@ function webform_submission_send_mail($node, $submission, $emails = NULL) {
         // Add the attachments to the mail parameters.
         $mail_params['attachments'] = $attachments;
 
-        // TODO: Perform any other modifications necessary to get MIME Mail
-        // sending e-mail properly as HTML and attachments.
+        // Set all other properties for HTML e-mail handling.
+        $mail_params['plain'] = !$email['html'];
+        $mail_params['plaintext'] = $email['html'] ? NULL : $email['message'];
+        $mail_params['headers'] = $email['headers'];
+        if ($email['html']) {
+          // MIME Mail requires this header or it will filter all text.
+          $mail_params['headers']['Content-Type'] = 'text/html; charset=UTF-8';
+        }
       }
 
       // Mail the submission.
@@ -382,9 +387,6 @@ function webform_submission_title($node, $submission) {
 function webform_submission_page($node, $submission, $format) {
   global $user;
 
-  // Add admin CSS.
-  drupal_add_css(drupal_get_path('module', 'webform') . '/css/webform-admin.css', array('group' => CSS_DEFAULT));
-
   // Render the admin UI breadcrumb.
   webform_set_breadcrumb($node, $submission);
 
@@ -400,16 +402,16 @@ function webform_submission_page($node, $submission, $format) {
 
   // Determine the mode in which we're displaying this submission.
   $mode = ($format != 'form') ? 'display' : 'form';
-  if (preg_match("!^q=print/!", $_SERVER['QUERY_STRING'])) {
+  if (strpos($_SERVER['REQUEST_URI'], 'print/') !== FALSE) {
     $mode = 'print';
   }
-  if (preg_match("!^q=printpdf/!", $_SERVER['QUERY_STRING'])) {
+  if (strpos($_SERVER['REQUEST_URI'], 'printpdf/') !== FALSE) {
     $mode = 'pdf';
   }
 
   // Add navigation for administrators.
   if (webform_results_access($node)) {
-    $navigation = in_array($mode, array('display', 'form')) ? theme('webform_submission_navigation', array('node' => $node, 'submission' => $submission, 'mode' => $mode)) : NULL;
+    $navigation = theme('webform_submission_navigation', array('node' => $node, 'submission' => $submission, 'mode' => $mode));
     $information = theme('webform_submission_information', array('node' => $node, 'submission' => $submission, 'mode' => $mode));
   }
   else {
@@ -425,7 +427,18 @@ function webform_submission_page($node, $submission, $format) {
     webform_disable_page_cache();
   }
 
-  return theme('webform_submission_page', array('node' => $node, 'submission' => $submission, 'submission_content' => $output, 'submission_navigation' => $navigation, 'submission_information' => $information, 'submission_actions' => $actions));
+  $page = array(
+    '#theme' => 'webform_submission_page',
+    '#node' => $node,
+    '#mode' => $mode,
+    '#submission' => $submission,
+    '#submission_content' => $output,
+    '#submission_navigation' => $navigation,
+    '#submission_information' => $information,
+    '#submission_actions' => $actions,
+  );
+  $page['#attached']['library'][] = array('webform', 'admin');
+  return $page;
 }
 
 /**
@@ -463,7 +476,7 @@ function webform_submission_resend($form, $form_state, $node, $submission) {
     $form['actions'] = array('#type' => 'actions');
     $form['actions']['resend'] = array(
       '#type' => 'submit',
-      '#value' => 'Resend e-mails',
+      '#value' => t('Resend e-mails'),
     );
     $form['actions']['cancel'] = array(
       '#type' => 'markup',
@@ -519,7 +532,7 @@ function webform_submission_resend_submit($form, &$form_state) {
 function theme_webform_submission_resend($variables) {
   $form = $variables['form'];
 
-  $header = array('',t('E-mail to'), t('Subject'));
+  $header = array('', t('E-mail to'), t('Subject'));
   $rows = array();
   if (!empty($form['emails'])) {
     foreach (element_children($form['emails']) as $eid) {
@@ -559,12 +572,21 @@ function webform_submission_render($node, $submission, $email, $format) {
   // Set the theme function for submissions.
   $renderable['#theme'] = array('webform_submission_' . $node->nid, 'webform_submission');
 
-  _webform_components_tree_build($node->webform['components'], $component_tree, 0, $page_count);
+  // Remove excluded components.
+  $components = $node->webform['components'];
+  foreach ($excluded_components as $cid) {
+    unset($components[$cid]);
+  }
 
-  // Recursively add components to the form.
-  foreach ($component_tree['children'] as $cid => $component) {
-    if (!in_array($cid, $excluded_components) && _webform_client_form_rule_check($node, $component, $component['page_num'], NULL, $submission)) {
-      _webform_client_form_add_component($node, $component, NULL, $renderable, $renderable, NULL, $submission, $format);
+  _webform_components_tree_build($components, $component_tree, 0, $page_count);
+
+  // Make sure at least one field is available
+  if (isset($component_tree['children'])) {
+    // Recursively add components to the form.
+    foreach ($component_tree['children'] as $cid => $component) {
+      if (_webform_client_form_rule_check($node, $component, $component['page_num'], NULL, $submission)) {
+        _webform_client_form_add_component($node, $component, NULL, $renderable, $renderable, NULL, $submission, $format);
+      }
     }
   }
 
@@ -573,7 +595,7 @@ function webform_submission_render($node, $submission, $email, $format) {
 }
 
 /**
- * Return all the submissions for a particular node and/or other filters.
+ * Return all the submissions for a particular node.
  *
  * @param $filters
  *   An array of filters to apply to this query. Usually in the format
@@ -592,17 +614,14 @@ function webform_get_submissions($filters = array(), $header = NULL, $pager_coun
     $filters = array('nid' => $filters);
   }
 
-  // UID filter needs to be against a specific table. We may or may not end up
-  // joining on {users} table.
+  // UID filters need to be against a specific table.
   if (isset($filters['uid'])) {
-    $filters['ws.uid'] = $filters['uid'];
+    $filters['u.uid'] = $filters['uid'];
     unset($filters['uid']);
   }
 
-  // No need to find SIDs if a single one was given to us and no other filters
-  // were specified. If an array was given, then still run the pager query to
-  // get them in the desired sort order and within the page limit.
-  if (isset($filters['sid']) && !is_array($filters['sid']) && count($filters) == 1) {
+  // No need to find SIDs if it was given to us.
+  if (isset($filters['sid'])) {
     $sids = array($filters['sid']);
   }
   // Build the list of SIDs that need to be retrieved.
@@ -612,7 +631,7 @@ function webform_get_submissions($filters = array(), $header = NULL, $pager_coun
       $pager_query->condition($column, $value);
     }
 
-    if (isset($filters['ws.uid']) && $filters['ws.uid'] === 0) {
+    if (isset($filters['u.uid']) && $filters['u.uid'] === 0) {
       if (!empty($_SESSION['webform_submission'])) {
         $anonymous_sids = array_keys($_SESSION['webform_submission']);
         $pager_query->condition('sid', $anonymous_sids, 'IN');
@@ -659,9 +678,9 @@ function webform_get_submissions($filters = array(), $header = NULL, $pager_coun
   $query->leftJoin('users', 'u', 'u.uid = s.uid');
   $query
     ->fields('s')
-    ->fields('sd')
+    ->fields('sd', array('cid', 'no', 'data'))
     ->fields('u', array('name'))
-     ->condition('s.sid', $sids, 'IN')
+    ->condition('s.sid', $sids, 'IN')
     ->orderBy('sd.sid', 'ASC')
     ->orderBy('sd.cid', 'ASC')
     ->orderBy('sd.no', 'ASC');
@@ -693,46 +712,34 @@ function webform_get_submissions($filters = array(), $header = NULL, $pager_coun
 }
 
 /**
- * Return a count of the total number of submissions for a node and/or other filters.
+ * Return a count of the total number of submissions for a node.
  *
- * @param $filters
- *   An array of filters to apply to this query. Usually in the format
- *   array('nid' => $nid, 'uid' => $uid). A single integer may also be passed
- *   in, which will be equivalent to specifying a $nid filter.
+ * @param $nid
+ *   The node ID for which submissions are being fetched.
  * @param $uid
- *   Optional; the user ID to filter the submissions by. Redundant with
- *   $filters['uid'], but commonly used when passing just a node id in $filters.
- *   If passed and not NULL, this overrides $filters['uid'].
+ *   Optional; the user ID to filter the submissions by.
  * @return
  *   An integer value of the number of submissions.
  */
-function webform_get_submission_count($filters, $uid = NULL, $reset = FALSE) {
+function webform_get_submission_count($nid, $uid = NULL, $reset = FALSE) {
   static $counts;
 
-  if (!is_array($filters)) {
-    $filters = array('nid' => $filters);
-  }
-  if (isset($uid)) {
-    $filters['uid'] = $uid;
-  }
-  if (!isset($filters['is_draft'])) {
-    $filters['is_draft'] = 0;
-  }
-
-  $cache_key = serialize($filters);
-  if (!isset($counts[$cache_key]) || $reset) {
-    $query = db_select('webform_submissions');
-    foreach ($filters as $column => $value) {
-      $query->condition($column, $value);
+  if (!isset($counts[$nid][$uid]) || $reset) {
+    $query = db_select('webform_submissions')
+      ->condition('nid', $nid)
+      ->condition('is_draft', 0);
+    $arguments = array($nid);
+    if ($uid !== NULL) {
+      $query->condition('uid', $uid);
     }
-    if (isset($filters['uid']) && $filters['uid'] === 0) {
+    if ($uid === 0) {
       $submissions = isset($_SESSION['webform_submission']) ? $_SESSION['webform_submission'] : array(0);
       $query->condition('sid', $submissions, 'IN');
     }
-    $counts[$cache_key] = $query->countQuery()->execute()->fetchField();
-  }
 
-  return $counts[$cache_key];
+    $counts[$nid][$uid] = $query->countQuery()->execute()->fetchField();
+  }
+  return $counts[$nid][$uid];
 }
 
 /**

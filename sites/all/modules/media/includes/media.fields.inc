@@ -13,7 +13,9 @@ function media_field_info() {
       'label' => t('Multimedia asset'),
       'description' => t('This field stores a reference to a multimedia asset.'),
       'settings' => array(),
-      'instance_settings' => array(),
+      'instance_settings' => array(
+        'file_extensions' => media_variable_get('file_extensions'),
+      ),
       'default_widget' => 'media_generic',
       'default_formatter' => 'media_large',
     ),
@@ -37,7 +39,7 @@ function media_field_widget_info() {
   return array(
     'media_generic' => array(
       'label' => t('Media file selector'),
-      'field types' => array('media'),
+      'field types' => array('media', 'file', 'image'),
       'settings' => array(
         'progress_indicator' => 'throbber',
         'allowed_types' => array('image'),
@@ -52,53 +54,70 @@ function media_field_widget_info() {
 }
 
 /**
- * Implement hook_field_formatter_info
+ * Implements hook_field_formatter_info().
  */
 function media_field_formatter_info() {
-  $formatters = array();
-
-  // Formatters for media are the same as build modes for media.
-  $build_modes = media_field_view_modes('media');
-  foreach ($build_modes as $key => $mode) {
-    $formatters[$key] = array(
-      'label' => t($mode['label']),
+  $formatters = array(
+    'media' => array(
+      'label' => t('Media'),
       'field types' => array('media'),
-    );
-  }
-
-  // Also add a formatter for files to show larger icons based on mimetype
-  $formatters['media_large_icon'] = array(
-    'label' => t('Large filetype icon'),
-    'field types' => array('file'),
+      'settings' => array('file_view_mode' => 'default'),
+    ),
+    // This was originally used when media entities contained file fields. The
+    // current file entity architecture no longer needs this, but people may
+    // have used this formatter for other file fields on their website.
+    // @todo Some day, remove this.
+    'media_large_icon' => array(
+      'label' => t('Large filetype icon'),
+      'field types' => array('file'),
+    ),
   );
-  
+
   return $formatters;
 }
 
 /**
- * Used to Implement hook_field_view_modes().
+ * Implements hook_field_formatter_settings_form().
  */
-function media_field_view_modes($obj_type) {
-  $modes = array();
-  if ($obj_type == 'media') {
-    $modes = array(
-      'media_link' => array('label' => t('Link'), 'custom settings' => FALSE),
-      'media_preview' => array('label' => t('Preview'), 'custom settings' => FALSE),
-      'media_small' => array('label' => t('Small'), 'custom settings' => FALSE),
-      'media_large' => array('label' => t('Large'), 'custom settings' => FALSE),
-      'media_original' => array('label' => t('Original'), 'custom settings' => FALSE),
+function media_field_formatter_settings_form($field, $instance, $view_mode, $form, &$form_state) {
+  $display = $instance['display'][$view_mode];
+  $settings = $display['settings'];
+
+  $element = array();
+
+  if ($display['type'] == 'media') {
+    $entity_info = entity_get_info('file');
+    $options = array('default' => t('Default'));
+    foreach ($entity_info['view modes'] as $file_view_mode => $file_view_mode_info) {
+      $options[$file_view_mode] = $file_view_mode_info['label'];
+    }
+    $element['file_view_mode'] = array(
+      '#title' => t('File view mode'),
+      '#type' => 'select',
+      '#default_value' => $settings['file_view_mode'],
+      '#options' => $options,
     );
   }
-  return $modes;
+
+  return $element;
 }
 
-function media_field_ui_view_modes_tabs() {
-  $modes = array(
-    'basic' => array(
-      'view modes' => array_keys(media_field_view_modes('media')),
-    ),
-  );
-  return $modes;
+/**
+ * Implements hook_field_formatter_settings_summary().
+ */
+function media_field_formatter_settings_summary($field, $instance, $view_mode) {
+  $display = $instance['display'][$view_mode];
+  $settings = $display['settings'];
+
+  $summary = '';
+
+  if ($display['type'] == 'media') {
+    $entity_info = entity_get_info('file');
+    $file_view_mode_label = isset($entity_info['view modes'][$settings['file_view_mode']]) ? $entity_info['view modes'][$settings['file_view_mode']]['label'] : t('Default');
+    $summary = t('File view mode: @view_mode', array('@view_mode' => $file_view_mode_label));
+  }
+
+  return $summary;
 }
 
 /**
@@ -108,7 +127,7 @@ function media_field_ui_view_modes_tabs() {
  *   hook to load referenced entities.
  */
 function media_field_prepare_view($entity_type, $entities, $field, $instances, $langcode, &$items) {
-  // Collect all media IDs that need loading.
+  // Collect all file ids that need loading.
   $fids = array();
   foreach ($entities as $id => $entity) {
     foreach ($items[$id] as $delta => $item) {
@@ -118,31 +137,25 @@ function media_field_prepare_view($entity_type, $entities, $field, $instances, $
     }
   }
 
-  // Load the entities in a single operation.
-  $media_entities = media_load_multiple(array_values($fids));
-
-  // Populate that item data with the loaded entities.
+  // Load the files and add the loaded file entity to the item data.
+  $files = file_load_multiple(array_values($fids));
   foreach ($entities as $id => $entity) {
     foreach ($items[$id] as $delta => $item) {
       if (is_array($item) && !empty($item['fid'])) {
-        $items[$id][$delta] = $media_entities[$item['fid']];
+        $items[$id][$delta]['file'] = $files[$item['fid']];
       }
     }
   }
 }
 
 /**
- * Implement hook_field_formatter_view
+ * Implement hook_field_formatter_view().
  */
 function media_field_formatter_view($entity_type, $entity, $field, $instance, $langcode, $items, $display) {
-  
-  $element = array();
-  
-  // This block handles fallback file type icons for media which doesn't have
-  // a thumbnail.  It's kind of a hack, and belongs in the file module.
+  // @todo Legacy support for the extra formatter added to file fields. See
+  //   media_field_formatter_info().
   if ($display['type'] == 'media_large_icon') {
     foreach ($items as $delta => $item) {
-      // Display all values in a single element..
       $element[$delta] = array(
         '#theme' => 'media_formatter_large_icon',
         '#file' => $item,
@@ -150,48 +163,12 @@ function media_field_formatter_view($entity_type, $entity, $field, $instance, $l
     }
     return $element;
   }
-  
-  // The rest of this hook invocation is for rendering media when it is attached
-  // as a field to other entities.  The formatter on the media field is equivilent
-  // to the media view_mode.  So if someone configures a media field on a node
-  // and says that the teaser formatter for the media is "large", it will render
-  // the media entity as per the large view_mode.
 
-  // An array of media items to pass into entity rendering functions.
-  $media_items = array();
-
+  $files = array();
   foreach ($items as $delta => $item) {
-    $media_items[$item->fid] = $item;
-    //$media_items[$item['fid']] = media_load($item['fid']);
+    $files[$item['fid']] = $item['file'];
   }
-
-  field_attach_prepare_view('media', $media_items, $display['type']);
-  entity_prepare_view('media', $media_items);
-
-
-
-  foreach ($items as $delta => $item) {
-    // @TODO:
-    // This works fine for Media styles, just not the default file types.
-    // Find out why this doesn't automatically already route through file.
-    // We're using a filefield in theory, created during the media_type
-    // instantiation at media_type_configure_fields().
-    // Other fields are routed properly, but not that default field...
-
-    // First check if the default File formatters are sufficient.
-//     $element[$delta] = file_field_formatter_view($obj_type, $object, $field, $instance, $langcode, $items, $display);
-
-    // If this is not handled by the File module, then defer to Styles.
-//     if (!$element[$delta]) {
-      $element[$delta] = field_attach_view('media', $item, $display['type'], $langcode);
-
-      // We'll defer to the Styles module to route formatting for the 'file'.
-      $element[$delta]['file']['#theme'] = 'styles_field_formatter';
-      $element[$delta]['file']['#element'] = $element[$delta]['file'];
-//     }
-  }
-
-  return $element;
+  return file_view_multiple($files, $display['settings']['file_view_mode'], 0, $langcode);
 }
 
 /**
@@ -203,6 +180,21 @@ function media_field_widget_settings_form($field, $instance) {
   $settings = $widget['settings'];
   $form = array();
 
+  if ($field['type'] == 'media') {
+    // Make the extension list a little more human-friendly by comma-separation.
+    $extensions = str_replace(' ', ', ', $instance['settings']['file_extensions']);
+    $form['file_extensions'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Allowed file extensions for uploaded files'),
+      '#default_value' => $extensions,
+      '#description' => t('Separate extensions with a space or comma and do not include the leading dot.'),
+      '#element_validate' => array('_file_generic_settings_extensions'),
+      // By making this field required, we prevent a potential security issue
+      // that would allow files of any type to be uploaded.
+      '#required' => TRUE,
+    );
+  }
+
   // Setup type selection form
   $types = media_type_get_types();
   $options = array();
@@ -210,16 +202,18 @@ function media_field_widget_settings_form($field, $instance) {
     $options[$key] = $definition->label;
   }
 
-  $form['allowed_types'] = array (
+  $streams = file_get_stream_wrappers();
+
+  $form['allowed_types'] = array(
     '#type' => 'checkboxes',
-    '#title' => t('Allowed media types'),
+    '#title' => t('Allowed remote media types'),
     '#options' => $options,
     '#default_value' => $settings['allowed_types'],
-    '#description' => t('Media types which are allowed for this field'),
+    '#description' => t('Media types which are allowed for this field when using remote streams.'),
     '#weight' => 1,
+    '#access' => count(file_get_stream_wrappers(STREAM_WRAPPERS_LOCAL)) != count($streams),
   );
 
-  $streams = file_get_stream_wrappers();
   $options = array();
   unset($streams['temporary']);
   foreach ($streams as $scheme => $data) {
@@ -240,6 +234,7 @@ function media_field_widget_settings_form($field, $instance) {
  * Implements hook_field_widget_form().
  */
 function media_field_widget_form(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $element) {
+  $field_settings = $instance['settings'];
   $widget_settings = $instance['widget']['settings'];
 
   $permission = user_access('edit media');
@@ -270,16 +265,32 @@ function media_field_widget_form(&$form, &$form_state, $field, $instance, $langc
     '#collapsed' => TRUE,
     '#default_value' => $current_value,
     '#required' => $instance['required'],
-    //'#media_file_extensions' => $instance['settings']['file_extensions'],
-    // @TODO: Not implemented yet.
     '#media_options' => array(
       'global' => array(
-        'types' => array_filter($instance['widget']['settings']['allowed_types']),
-        // @todo: Not implemented
-        'schemes' => $instance['widget']['settings']['allowed_schemes'],
+        'types' => array_filter($widget_settings['allowed_types']),
+        'schemes' => $widget_settings['allowed_schemes'],
+        'file_directory' => isset($field_settings['file_directory']) ? $field_settings['file_directory'] : NULL,
+        'file_extensions' => isset($field_settings['file_extensions']) ? $field_settings['file_extensions'] : media_variable_get('file_extensions'),
+        'max_filesize' => isset($field_settings['max_filesize']) ? $field_settings['max_filesize'] : NULL,
+        'uri_scheme' => !empty($field_settings['uri_scheme']) ? $field_settings['uri_scheme'] : file_default_scheme(),
       ),
     ),
   );
+
+  if ($field['type'] == 'file') {
+    $element['display'] = array(
+      '#type' => 'value',
+      '#value' => 1,
+    );
+  }
+
+  // Add image field specific validators.
+  if ($field['type'] == 'image') {
+    if ($field_settings['min_resolution'] || $field_settings['max_resolution']) {
+      $element['#media_options']['global']['min_resolution'] = $field_settings['min_resolution'];
+      $element['#media_options']['global']['max_resolution'] = $field_settings['max_resolution'];
+    }
+  }
 
   return $element;
 }
@@ -325,7 +336,7 @@ function media_field_validate($obj_type, $object, $field, $instance, $langcode, 
  */
 function media_field_widget_value($element, $input, $form_state) {
   $return = $input;
-  
+
   if (!is_array($return)) {
     $return = array();
   }
@@ -385,13 +396,13 @@ function media_field_update($entity_type, $entity, $field, $instance, $langcode,
     }
     return;
   }
-  
+
   // Build a display of the current FIDs.
   $current_fids = array();
   foreach ($items as $item) {
     $current_fids[] = $item['fid'];
   }
-  
+
   // Create a bare-bones entity so that we can load its previous values.
   $original = entity_create_stub_entity($entity_type, array($id, $vid, $bundle));
   field_attach_load($entity_type, array($id => $original), FIELD_LOAD_CURRENT, array('field_id' => $field['id']));

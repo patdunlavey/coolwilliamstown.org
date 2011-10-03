@@ -55,12 +55,12 @@
   margin-bottom: 30px;
 }
 
-/* This is some stuff to just get some basic mockup done on the 
+/* This is some stuff to just get some basic mockup done on the
    content navigator. Should be removed/revised soon */
- 
+
 .result_limit {
   float: right;
-}  
+}
 .result_limit li {
    display: inline;
    list-style: none;
@@ -346,26 +346,6 @@ a.button {
    border-bottom: 1px solid #aaa;
    margin-bottom:1em;
    margin-top:1.5em;
-}
-
-.media-edit-form .sidebar {
-  float: left;
-  width: 180px;
-}
-
-.media-edit-form .sidebar ~ * {
-  margin-left: 208px;
-  zoom: 1; /* IE7 needs this */
-}
-
-.media-edit-form .sidebar ~ .form-actions {
-  margin-left: 0;
-}
-
-/* This declaration fixes a layout issue in IE7 */
-.media-edit-form .sidebar .form-item {
-  margin-left: 0;
-  width: 100%;
 }
 
 body.page-media-format-form {

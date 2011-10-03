@@ -1,9 +1,8 @@
 <?php
-// $Id$
 
 /**
  * @file
- * Tests file for the menu module.
+ * Tests for menu.module.
  */
 
 class MenuTestCase extends DrupalWebTestCase {
@@ -380,7 +379,7 @@ class MenuTestCase extends DrupalWebTestCase {
   /**
    * Modify a menu link using the menu module UI.
    *
-   * @param array &$item Menu link passed by reference.
+   * @param array $item Menu link passed by reference.
    */
   function modifyMenuLink(&$item) {
     $item['link_title'] = $this->randomName(16);
@@ -667,15 +666,19 @@ class MenuNodeTestCase extends DrupalWebTestCase {
     $this->assertNoLink($node_title);
 
     // Add a menu link to the Management menu.
-    $edit = array(
+    $item = array(
       'link_path' => 'node/' . $node->nid,
-      'link_title' => $node_title,
-      'parent' =>  'management:0',
+      'link_title' => $this->randomName(16),
+      'menu_name' => 'management',
     );
-    $this->drupalPost("admin/structure/menu/manage/management/add", $edit, t('Save'));
+    menu_link_save($item);
 
-    // Assert that Management is selected on the node/$nid/edit page, even though the Management menu is not selected for the node type.
+    // Assert that disabled Management menu is not shown on the node/$nid/edit page.
     $this->drupalGet('node/' . $node->nid . '/edit');
-    $this->assertRaw('<option value="management:0" selected="selected">', t('Menu link parent is consistent'));
+    $this->assertText('Provide a menu link', t('Link in not allowed menu not shown in node edit form'));
+    // Assert that the link is still in the management menu after save.
+    $this->drupalPost('node/' . $node->nid . '/edit', $edit, t('Save'));
+    $link = menu_link_load($item['mlid']);
+    $this->assertTrue($link, t('Link in not allowed menu still exists after saving node'));
   }
 }

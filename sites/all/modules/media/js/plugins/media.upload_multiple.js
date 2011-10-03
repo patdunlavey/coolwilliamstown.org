@@ -9,7 +9,7 @@ Drupal.behaviors.mediaUploadMultiple.attach = function (context, settings) {
     Drupal.media.browser.resizeIframe();
     // Handle the case in which the uploader has not yet initialized.
     uploader.bind("PostInit", Drupal.media.browser.resizeIframe);
-    
+
     uploader.bind('StateChanged', Drupal.behaviors.mediaUploadMultiple.submit);
   }
 };

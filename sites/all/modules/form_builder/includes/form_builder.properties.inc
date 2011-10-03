@@ -1,5 +1,4 @@
 <?php
-// $Id: form_builder.properties.inc,v 1.16 2011/01/12 04:00:19 quicksketch Exp $
 
 /**
  * @file form_builder.properties.inc
@@ -61,14 +60,15 @@ function form_builder_property_title_display_form(&$form_state, $form_type, $ele
   $form = array();
 
   $form['title_display'] = array(
+    '#form_builder' => array('property_group' => 'display'),
     '#title' => t('Title display'),
     '#type' => 'select',
     '#default_value' => $element['#title_display'],
     '#options' => array(
-      'before' => 'before',
-      'after' => 'after',
-      'invisible' => 'invisible',
-      'attribute' => 'attribute',
+      'before' => t('Before'),
+      'after' => t('After'),
+      'invisible' => t('Invisible'),
+      'attribute' => t('Attribute'),
     ),
     '#required' => TRUE,
     '#weight' => -10,

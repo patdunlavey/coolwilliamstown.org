@@ -1,5 +1,4 @@
 <?php
-// $Id$
 
 /**
  * Implements hook_entity_info_alter().
@@ -105,7 +104,7 @@ function xmlsitemap_menu_xmlsitemap_process_menu_links(array $mlids, array $xmls
  * @see xmlsitemap_add_link_bundle_settings()
  */
 function xmlsitemap_menu_form_menu_edit_menu_alter(&$form, $form_state) {
-  $menu = isset($form['menu_name']['#value']) ? $form['menu_name']['#value'] : '';
+  $menu = isset($form['menu_name']['#default_value']) ? $form['menu_name']['#default_value'] : '';
   module_load_include('inc', 'xmlsitemap', 'xmlsitemap.admin');
   xmlsitemap_add_link_bundle_settings($form, $form_state, 'menu_link', $menu);
 }
@@ -146,8 +145,9 @@ function xmlsitemap_menu_menu_insert(array $menu) {
   if (isset($menu['xmlsitemap'])) {
     xmlsitemap_link_bundle_settings_save('menu_link', $menu['menu_name'], $menu['xmlsitemap']);
   }
-  // When menus change, the bundles we defined in hook_entity_info_alter()
-  // change, so we need to clear the cache.
+
+  // When menus change, the bundles we defined in
+  // xmlsitemap_menu_entity_info_alter() change, so we need to clear the cache.
   entity_info_cache_clear();
 }
 
@@ -158,8 +158,9 @@ function xmlsitemap_menu_menu_update(array $menu) {
   if (isset($menu['xmlsitemap'])) {
     xmlsitemap_link_bundle_settings_save('menu_link', $menu['menu_name'], $menu['xmlsitemap']);
   }
-  // When menus change, the bundles we defined in hook_entity_info_alter()
-  // change, so we need to clear the cache.
+
+  // When menus change, the bundles we defined in
+  // xmlsitemap_menu_entity_info_alter() change, so we need to clear the cache.
   entity_info_cache_clear();
 }
 
@@ -168,8 +169,9 @@ function xmlsitemap_menu_menu_update(array $menu) {
  */
 function xmlsitemap_menu_menu_delete(array $menu) {
   xmlsitemap_link_bundle_delete('menu_link', $menu['menu_name']);
-  // When menus change, the bundles we defined in hook_entity_info_alter()
-  // change, so we need to clear the cache.
+
+  // When menus change, the bundles we defined in
+  // xmlsitemap_menu_entity_info_alter() change, so we need to clear the cache.
   entity_info_cache_clear();
 }
 
@@ -183,10 +185,28 @@ function xmlsitemap_menu_menu_link_insert(array $link) {
 
 /**
  * Implements hook_menu_link_update().
+ *
+ * @see hook_menu_link_alter()
  */
 function xmlsitemap_menu_menu_link_update(array $link) {
-  $link += array('xmlsitemap' => array());
-  xmlsitemap_menu_xmlsitemap_process_menu_links(array($link['mlid']), $link['xmlsitemap']);
+  //$link += array('xmlsitemap' => array());
+  //xmlsitemap_menu_xmlsitemap_process_menu_links(array($link['mlid']), $link['xmlsitemap']);
+}
+
+/**
+ * Implements hook_menu_link_alter().
+ *
+ * We have to use this hook rather than hook_menu_link_update() because this
+ * hook is not always called if the user does not edit the core menu item
+ * fields.
+ *
+ * @see http://drupal.org/node/1013856
+ */
+function xmlsitemap_menu_menu_link_alter(array &$link) {
+  if (!empty($link['mlid'])) {
+    $link += array('xmlsitemap' => array());
+    xmlsitemap_menu_xmlsitemap_process_menu_links(array($link['mlid']), $link['xmlsitemap']);
+  }
 }
 
 /**

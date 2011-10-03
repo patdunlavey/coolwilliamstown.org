@@ -1,5 +1,4 @@
 <?php
-// $Id$
 
 /**
  * @file
@@ -32,14 +31,12 @@ function taxonomy_term_page($term) {
   drupal_add_feed('taxonomy/term/' . $term->tid . '/feed', 'RSS - ' . $term->name);
 
   $build = array();
-  // Add term heading if the term has a description
-  if (!empty($term->description)) {
-    $build['term_heading'] = array(
-      '#prefix' => '<div class="term-listing-heading">',
-      '#suffix' => '</div>',
-      'term' => taxonomy_term_view($term, 'full'),
-    );
-  }
+
+  $build['term_heading'] = array(
+    '#prefix' => '<div class="term-listing-heading">',
+    '#suffix' => '</div>',
+    'term' => taxonomy_term_view($term, 'full'),
+  );
 
   if ($nids = taxonomy_select_nodes($term->tid, TRUE, variable_get('default_nodes_main', 10))) {
     $nodes = node_load_multiple($nids);
@@ -77,21 +74,10 @@ function taxonomy_term_feed($term) {
 }
 
 /**
- * AJAX page callback for taxonomy tag autocompletion.
- *
- * @param $field_name
- *   The name of the tag field.
- * @param $tags_typed
- *   A comma-separated list of tags that the user has entered into the field.
+ * Helper function for autocompletion
  */
 function taxonomy_autocomplete($field_name, $tags_typed = '') {
-  // Make sure the field exists and is a taxonomy field.
-  if (!($field = field_info_field($field_name)) || $field['type'] !== 'taxonomy_term_reference') {
-    // Error string. The JavaScript handler will realize this is not JSON and
-    // will display it as debugging information.
-    print t('Taxonomy field @field_name not found.', array('@field_name' => $field_name));
-    exit;
-  }
+  $field = field_info_field($field_name);
 
   // The user enters a comma-separated list of tags. We only autocomplete the last tag.
   $tags_typed = drupal_explode_tags($tags_typed);
@@ -124,7 +110,7 @@ function taxonomy_autocomplete($field_name, $tags_typed = '') {
       ->execute()
       ->fetchAllKeyed();
 
-    $prefix = count($tags_typed) ? implode(', ', $tags_typed) . ', ' : '';
+    $prefix = count($tags_typed) ? drupal_implode_tags($tags_typed) . ', ' : '';
 
     $term_matches = array();
     foreach ($tags_return as $tid => $name) {
@@ -133,9 +119,7 @@ function taxonomy_autocomplete($field_name, $tags_typed = '') {
       if (strpos($name, ',') !== FALSE || strpos($name, '"') !== FALSE) {
         $n = '"' . str_replace('"', '""', $name) . '"';
       }
-      else {
-        $term_matches[$prefix . $n] = check_plain($name);
-      }
+      $term_matches[$prefix . $n] = check_plain($name);
     }
   }
 

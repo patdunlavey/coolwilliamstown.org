@@ -1,5 +1,4 @@
 <?php
-// $Id: form_builder.api.inc,v 1.13 2010/09/05 00:56:32 quicksketch Exp $
 
 /**
  * @file form_builder.api.inc
@@ -61,7 +60,7 @@ function form_builder_get_form_type($form_type = NULL, $reset = FALSE) {
             $field['default']['#form_builder']['element_type'] = $field_key;
           }
           elseif (!isset($field['default']['#form_builder']['element_type'])) {
-            $field['default']['#form_builder']['element_type'] = $field['default']['#type'];
+            $field['default']['#form_builder']['element_type'] = $field_key;
           }
         }
 

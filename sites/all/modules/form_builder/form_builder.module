@@ -1,5 +1,4 @@
 <?php
-// $Id: form_builder.module,v 1.16 2011/01/12 04:00:19 quicksketch Exp $
 
 /**
  * @file form_builder.module
@@ -62,18 +61,10 @@ function form_builder_menu() {
 }
 
 /**
- * Implementation of hook_theme().
+ * Implements hook_theme().
  */
 function form_builder_theme() {
   return array(
-    'form_builder_empty_fieldset' => array(
-      'variables' => array(),
-      'file' => 'includes/form_builder.admin.inc',
-    ),
-    'form_builder_field_palette' => array(
-      'variables' => array('fields' => NULL, 'groups' => NULL, 'form_type' => NULL, 'form_id' => NULL),
-      'file' => 'includes/form_builder.admin.inc',
-    ),
     'form_builder_element_wrapper' => array(
       'render element' => 'element',
       'file' => 'includes/form_builder.admin.inc',
@@ -82,41 +73,37 @@ function form_builder_theme() {
       'render element' => 'element',
       'file' => 'includes/form_builder.admin.inc',
     ),
+    'form_builder_empty_fieldset' => array(
+      'variables' => array(),
+      'file' => 'includes/form_builder.admin.inc',
+    ),
+    'form_builder_field_palette' => array(
+      'variables' => array('fields' => NULL, 'groups' => NULL, 'form_type' => NULL, 'form_id' => NULL),
+      'file' => 'includes/form_builder.admin.inc',
+    ),
   );
 }
 
 /**
- * Implementation of hook_block().
+ * Implements hook_block_info().
  */
 function form_builder_block_info() {
+  $blocks = array();
   $blocks['fields'] = array(
     'info' => t('Form builder fields'),
+    'weight' => 0,
   );
-
   return $blocks;
 }
 
+/**
+ * Implements hook_block_view().
+ */
 function form_builder_block_view($delta = '') {
   $block = array();
-  switch($delta) {
-    case 'fields':
-      if ($active = form_builder_active_form()) {
-        $fields = form_builder_get_form_type($active['form_type']);
-        $groups = module_invoke_all('form_builder_palette_groups');
-        // TODO: We shouldn't have to clear the cache here.
-        $form = form_builder_cache_load($active['form_type'], $active['form_id'], NULL, TRUE);
-        $active_fields = form_builder_get_element_ids($form);
-        foreach ($fields as $key => $field) {
-          if ($field['unique'] && in_array($key, $active_fields)) {
-            $fields[$key]['in_use'] = TRUE;
-          }
-          if ($field['addable'] == FALSE) {
-            unset($fields[$key]);
-          }
-        }
-        $block['content'] = theme('form_builder_field_palette', array('fields' => $fields, 'groups' => $groups, 'form_type' => $active['form_type'], 'form_id' => $active['form_id']));
-      }
-      break;
+  if ($delta == 'fields') {
+    module_load_include('inc', 'form_builder', 'includes/form_builder.admin');
+    $block['content'] = form_builder_field_palette();
   }
   return $block;
 }
@@ -367,5 +354,6 @@ function form_builder_registry_files_alter(&$files, $module_cache) {
   $module_files = file_scan_directory(drupal_get_path('module', 'form_builder') . '/modules', '!^.*\.inc$!');
   foreach ($module_files as $path => $file) {
     $files[$file->uri]['module'] = $file->name;
+    $files[$file->uri]['weight'] = 0;
   }
 }

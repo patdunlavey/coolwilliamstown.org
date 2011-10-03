@@ -171,7 +171,7 @@ function _simplified_menu_admin_add_form(&$form, $form_state, $form_id) {
   // $form array. Note that this will replace any common form elements (e.g.,
   // submit buttons) with ones from the second form, but so far that's exactly
   // what we want for this module.
-  $form = call_user_func_array($form_id, array_merge(array($form, $form_state), $args));
+  $form = call_user_func_array($form_id, array_merge(array($form, &$form_state), $args));
   drupal_alter(array('form', "form_{$form_id}"), $form, $form_state, $form_id);
 
   // Now actually build a full copy of the form we're adding, and use it to

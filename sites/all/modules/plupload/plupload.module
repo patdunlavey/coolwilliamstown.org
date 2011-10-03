@@ -237,12 +237,11 @@ function plupload_element_pre_render($element) {
  * Implements hook_library().
  */
 function plupload_library() {
-  // @todo - itegrate with the libraries module?
-  $library_path = drupal_get_path('module', 'plupload') . '/plupload';
+  $library_path = variable_get('plupload_library_path', module_exists('libraries') ? libraries_get_path('plupload') : 'sites/all/libraries/plupload');
   $libraries['plupload'] = array(
     'title' => 'Plupload',
     'website' => 'http://www.plupload.com',
-    'version' => '1.3.9',
+    'version' => '1.4.3.2',
     'js' => array(
       // @todo - only add gears JS if gears is an enabled runtime.
       // $library_path . '/js/gears_init.js' => array(),

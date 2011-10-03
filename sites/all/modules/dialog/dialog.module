@@ -107,12 +107,14 @@ function dialog_ajax_render_alter(&$commands) {
     $allowed_media = array('all', 'screen');
     // Inject additional JavaScript and CSS to the browser's client.
     $css = drupal_add_css();
+    drupal_alter('css', $css);
     foreach ($css as $data => $options) {
       if ($options['type'] == 'file' && in_array($options['media'], $allowed_media)) {
         $loader['css'][] = base_path() . $options['data'];
       }
     }
     $scripts = drupal_add_js();
+    drupal_alter('js', $scripts);
     foreach ($scripts as $data => $options) {
       if ($options['type'] == 'file') {
         $loader['js'][] = base_path() . $options['data'];
@@ -218,7 +220,7 @@ function dialog_command_redirect($path, $options = array()) {
  */
 function dialog_command_reload() {
   return array(
-    'command' => 'reload',
+    'command' => 'dialog_reload',
   );
 }
 

@@ -1,5 +1,4 @@
 <?php
-// $Id: node.inc,v 1.3 2010/12/29 20:28:57 quicksketch Exp $
 
 /**
  * @file

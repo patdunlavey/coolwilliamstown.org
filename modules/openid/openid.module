@@ -1,5 +1,4 @@
 <?php
-// $Id$
 
 /**
  * @file
@@ -329,7 +328,6 @@ function openid_complete($response = array()) {
     if (isset($response['openid.mode'])) {
       if ($response['openid.mode'] == 'cancel') {
         $response['status'] = 'cancel';
-        $response['status.message'] = 'OpenID process cancelled from the provider.';
       }
       else {
         if (openid_verify_assertion($service, $response)) {
@@ -358,7 +356,6 @@ function openid_complete($response = array()) {
                 }
               }
               if (!in_array($service['uri'], $uris)) {
-                $response['status.message'] = 'Provider not authorized to respond on behalf of this OpenID.';
                 return $response;
               }
             }
@@ -368,17 +365,8 @@ function openid_complete($response = array()) {
           }
           $response['status'] = 'success';
         }
-        else {
-          $response['status.message'] = 'OpenID assertion verification failed.';
-        }
       }
     }
-    else {
-      $response['status.message'] = 'OpenID mode not set in response.';
-    }
-  }
-  else {
-    $response['status.message'] = 'OpenID session information missing.';
   }
   return $response;
 }

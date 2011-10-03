@@ -7,9 +7,9 @@ dependencies[] = form_builder
 dependencies[] = form_builder_webform
 dependencies[] = ux_elements
 
-; Information added by drupal.org packaging script on 2011-04-26
+; Information added by drupal.org packaging script on 2011-07-21
 version = "7.x-1.x-dev"
 core = "7.x"
 project = "webform_alt_ui"
-datestamp = "1303790400"
+datestamp = "1311208906"
 

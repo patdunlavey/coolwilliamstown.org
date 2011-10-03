@@ -1,5 +1,4 @@
 <?php
-// $Id: form_builder_examples.module,v 1.12 2010/12/29 20:28:57 quicksketch Exp $
 
 /**
  * @file form_builder_examples.module
@@ -436,12 +435,22 @@ function form_builder_examples_export_recurse($form, $parents = array()) {
         if (is_array($form[$property])) {
           $output .= "  '". $property . "' => array(\n";
           foreach ($form[$property] as $key => $value) {
-            $output .= "    '" . $key . "' => '". $value ."',\n";
+            if ($property == '#options') {
+              $output .= "    '" . $key . "' => t('". $value ."'),\n";
+            }
+            else {
+              $output .= "    '" . $key . "' => '". $value ."',\n";
+            }
           }
           $output .= "  ),\n";
         }
         else {
-          $output .= "  '". $property . "' => '" . $form[$property] ."',\n";
+          if (($property == '#title') || ($property == '#description')) {
+            $output .= "  '". $property . "' => t('" . $form[$property] ."'),\n";
+          }
+          else {
+            $output .= "  '". $property . "' => '" . $form[$property] ."',\n";
+          }
         }
       }
     }

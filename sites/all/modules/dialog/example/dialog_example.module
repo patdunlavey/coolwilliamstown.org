@@ -71,7 +71,7 @@ function dialog_example_ajax_callback($ajax) {
 
     $commands = array();
     $commands[] = dialog_command_display($content, $options);
-    ajax_render($commands);
+    ajax_deliver(array('#type' => 'ajax', '#commands' => $commands));
   }
   else {
     // If the user isn't using JavaScript, just show the normal page.

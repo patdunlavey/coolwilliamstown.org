@@ -1,5 +1,4 @@
 <?php
-// $Id: form_builder.install,v 1.2 2010/12/29 21:15:24 quicksketch Exp $
 
 /**
  * Implementation of hook_uninstall().
@@ -70,7 +69,6 @@ function form_builder_schema() {
        'updated' => array('updated'),
     ),
   );
-
 
   return $schema;
 }
